@@ -22,7 +22,7 @@ MQTT_TOPIC = f"ecoflow/{DEVICE_SN}/status"
 MQTT_CLIENT_ID = f"ecoflow-render-{random.randint(1000,9999)}"
 
 # 🔗 Make.com webhook (optional)
-MAKE_WEBHOOK_URL = ""  # or leave blank if not used
+MAKE_WEBHOOK_URL = "https://hook.us1.make.com/oyy2deqncdptxkl7j4gv6s2yha7eilvv"  # or leave blank if not used
 
 POLL_INTERVAL = 60  # seconds
 
