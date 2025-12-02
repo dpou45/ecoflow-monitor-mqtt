@@ -3,4 +3,5 @@ hmac
 paho-mqtt==1.6.1
 python-telegram-bot==20.6
 schedule==1.2.0
-tinytuya==9.4.1
+tinytuya==1.17.4
+
