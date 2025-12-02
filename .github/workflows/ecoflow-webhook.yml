@@ -1,8 +1,11 @@
 name: EcoFlow MQTT Webhook Trigger
 
 on:
-  repository_dispatch:
-    types: [run-ecoflow-script]
+  push:
+    branches: [ main ]
+  schedule:
+    # Monday cada semana a las 00:00 UTC
+    - cron: '0 0 * * 1'
   workflow_dispatch:  # Allow manual run from GitHub UI
 
 jobs:
