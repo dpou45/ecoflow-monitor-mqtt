@@ -31,8 +31,8 @@ MQTT_CLIENT_ID = f"ecoflow-render-{random.randint(1000,9999)}"
 # 🔌 Tuya Smart Socket Config
 TUYA_USERNAME = os.environ["TUYA_USERNAME"]
 TUYA_PASSWORD = os.environ["TUYA_PASSWORD"]
-TUYA_COUNTRY_CODE = os.environ.get("TUYA_COUNTRY_CODE", "1")
-TUYA_APPLICATION = os.environ.get("TUYA_APPLICATION", "smart_life")
+TUYA_COUNTRY_CODE = os.environ.get("TUYA_COUNTRY_CODE", "593") #593 Ecuador
+TUYA_APPLICATION = os.environ.get("TUYA_APPLICATION", "tuya")
 SOCKET_NAME = os.environ.get("SOCKET_NAME", "EcoFlow Smart Socket")  # Nombre en app Tuya
 
 # 🤖 Telegram Config
@@ -477,3 +477,4 @@ if __name__ == "__main__":
     main()
 
 '''
+
