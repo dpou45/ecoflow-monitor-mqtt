@@ -7,7 +7,7 @@ import ssl
 import random
 import paho.mqtt.client as mqtt
 import os
-from tuyapy import TuyaApi
+import tinytuya  # Alternativa a tuyapy
 import schedule
 from datetime import datetime, time as dt_time
 import threading
@@ -28,12 +28,10 @@ HIVEMQ_PASS = os.environ["HIVEMQ_PASS"]
 MQTT_TOPIC = f"ecoflow/{DEVICE_SN}/status"
 MQTT_CLIENT_ID = f"ecoflow-render-{random.randint(1000,9999)}"
 
-# 🔌 Tuya Smart Socket Config
-TUYA_USERNAME = os.environ["TUYA_USERNAME"]
-TUYA_PASSWORD = os.environ["TUYA_PASSWORD"]
-TUYA_COUNTRY_CODE = os.environ.get("TUYA_COUNTRY_CODE", "593") #593 Ecuador
-TUYA_APPLICATION = os.environ.get("TUYA_APPLICATION", "tuya")
-SOCKET_NAME = os.environ.get("SOCKET_NAME", "EcoFlow Smart Socket")  # Nombre en app Tuya
+# 🔌 Tuya Smart Socket Config (ECUADOR)
+TUYA_DEVICE_ID = os.environ["TUYA_DEVICE_ID"]
+TUYA_LOCAL_KEY = os.environ["TUYA_LOCAL_KEY"]
+TUYA_DEVICE_IP = os.environ["TUYA_DEVICE_IP"]
 
 # 🤖 Telegram Config
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -45,97 +43,76 @@ POWER_THRESHOLD = 100   # 100 watts
 SCHEDULE_START = "08:00"  # Hora de inicio
 SCHEDULE_END = "14:00"    # Hora de fin
 
-# Variables globales
-current_status = {
-    "soc_percent": 0,
-    "watts_out": 0,
-    "socket_state": False,
-    "override_active": False
-}
-
-class EcoFlowTuyaController:
+class EcoFlowTuyaControllerEC:
     def __init__(self):
-        # Inicializar Tuya
-        self.tuya_api = TuyaApi()
-        self.tuya_api.init(TUYA_USERNAME, TUYA_PASSWORD, TUYA_COUNTRY_CODE, TUYA_APPLICATION)
+        print("🚀 Inicializando controlador con TinyTuya...")
+        
+        # Configurar dispositivo Tuya
+        self.device = tinytuya.OutletDevice(
+            dev_id=TUYA_DEVICE_ID,
+            address=TUYA_DEVICE_IP, 
+            local_key=TUYA_LOCAL_KEY,
+            version=3.3
+        )
         
         # Inicializar Telegram
         self.telegram_bot = Bot(token=TELEGRAM_BOT_TOKEN)
         
         # Estado del sistema
-        self.socket_device = None
-        self._discover_socket()
+        self.socket_state = False
         
-    def _discover_socket(self):
-        """Descubrir el socket Tuya"""
-        try:
-            devices = self.tuya_api.get_all_devices()
-            for device in devices:
-                if device.name() == SOCKET_NAME:
-                    self.socket_device = device
-                    print(f"✅ Socket encontrado: {SOCKET_NAME}")
-                    return
-            
-            print(f"❌ Socket '{SOCKET_NAME}' no encontrado")
-            print("Dispositivos disponibles:")
-            for device in devices:
-                print(f"  - {device.name()}")
-                
-        except Exception as e:
-            print(f"❌ Error descubriendo dispositivos Tuya: {e}")
-    
     def get_socket_state(self):
         """Obtener estado actual del socket"""
-        if self.socket_device:
-            try:
-                return self.socket_device.state()
-            except Exception as e:
-                print(f"Error obteniendo estado del socket: {e}")
-        return False
+        try:
+            data = self.device.status()
+            if 'dps' in data:
+                # DPS 1 generalmente controla el encendido/apagado
+                self.socket_state = bool(data['dps'].get('1', False))
+            return self.socket_state
+        except Exception as e:
+            print(f"⚠️ Error obteniendo estado del socket: {e}")
+            return False
     
     def turn_on_socket(self):
         """Encender el socket"""
-        if self.socket_device:
-            try:
-                self.socket_device.turn_on()
-                current_status["socket_state"] = True
-                print("✅ Socket ENCENDIDO")
-                self.send_telegram_alert("🔌 Socket ENCENDIDO")
-                return True
-            except Exception as e:
-                print(f"❌ Error encendiendo socket: {e}")
-        return False
+        try:
+            result = self.device.turn_on()
+            self.socket_state = True
+            print("✅ Socket ENCENDIDO")
+            self.send_telegram_alert("🔌 Socket ENCENDIDO")
+            return True
+        except Exception as e:
+            print(f"❌ Error encendiendo socket: {e}")
+            return False
     
     def turn_off_socket(self):
         """Apagar el socket"""
-        if self.socket_device:
-            try:
-                self.socket_device.turn_off()
-                current_status["socket_state"] = False
-                print("🔴 Socket APAGADO")
-                self.send_telegram_alert("🔴 Socket APAGADO")
-                return True
-            except Exception as e:
-                print(f"❌ Error apagando socket: {e}")
-        return False
+        try:
+            result = self.device.turn_off()
+            self.socket_state = False
+            print("🔴 Socket APAGADO")
+            self.send_telegram_alert("🔴 Socket APAGADO")
+            return True
+        except Exception as e:
+            print(f"❌ Error apagando socket: {e}")
+            return False
     
     def send_telegram_alert(self, message):
         """Enviar alerta por Telegram"""
         try:
-            full_message = f"🔋 EcoFlow Alert\n{message}\nBatería: {current_status['soc_percent']}%\nConsumo: {current_status['watts_out']}W\nHora: {datetime.now().strftime('%H:%M:%S')}"
+            full_message = (
+                f"🔋 EcoFlow Alert - Ecuador 🇪🇨\n"
+                f"{message}\n"
+                f"🕒 Hora: {datetime.now().strftime('%H:%M:%S')}"
+            )
             self.telegram_bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=full_message)
-            print(f"📱 Telegram alert sent: {message}")
+            print(f"📱 Telegram alert sent: {message[:50]}...")
         except TelegramError as e:
             print(f"❌ Error enviando Telegram: {e}")
     
     def check_conditions(self, soc_percent, watts_out):
         """Verificar condiciones para control automático"""
-        global current_status
-        
-        current_status["soc_percent"] = soc_percent
-        current_status["watts_out"] = watts_out
-        
-        # Verificar si estamos en el horario programado
+        # Obtener hora actual
         current_time = datetime.now().time()
         start_time = dt_time(8, 0)   # 08:00
         end_time = dt_time(14, 0)    # 14:00
@@ -146,40 +123,34 @@ class EcoFlowTuyaController:
         battery_low = soc_percent < BATTERY_THRESHOLD
         power_low = watts_out < POWER_THRESHOLD
         
+        current_socket_state = self.get_socket_state()
+        
+        print(f"\n🔍 Verificando condiciones:")
+        print(f"   Hora: {current_time.strftime('%H:%M')}")
+        print(f"   Batería: {soc_percent}%")
+        print(f"   Consumo: {watts_out}W")
+        print(f"   Estado socket: {'ON' if current_socket_state else 'OFF'}")
+        
         # Lógica de control
         if in_schedule_time:
             if battery_low or power_low:
-                # Condiciones de override - mantener socket encendido
-                if not current_status["override_active"]:
-                    self.send_telegram_alert(
-                        f"🚨 OVERRIDE ACTIVADO\n"
-                        f"Batería: {soc_percent}% < {BATTERY_THRESHOLD}% "
-                        f"o Consumo: {watts_out}W < {POWER_THRESHOLD}W"
-                    )
-                    current_status["override_active"] = True
-                
-                # Asegurar que el socket esté encendido
-                if not self.get_socket_state():
+                # Condiciones críticas - mantener encendido
+                if not current_socket_state:
+                    print("   Acción: ENCENDER (condiciones críticas)")
                     self.turn_on_socket()
             else:
-                # Condiciones normales - apagar socket
-                current_status["override_active"] = False
-                if self.get_socket_state():
+                # Condiciones normales - apagar
+                if current_socket_state:
+                    print("   Acción: APAGAR (horario normal)")
                     self.turn_off_socket()
         else:
-            # Fuera del horario - encender socket
-            current_status["override_active"] = False
-            if not self.get_socket_state():
+            # Fuera de horario - encender
+            if not current_socket_state:
+                print("   Acción: ENCENDER (fuera de horario)")
                 self.turn_on_socket()
-        
-        # Alertas específicas
-        if soc_percent < 30:
-            self.send_telegram_alert(f"⚠️ Batería CRÍTICA: {soc_percent}%")
-        
-        if watts_out > 500:  # Alto consumo
-            self.send_telegram_alert(f"⚡ Alto consumo: {watts_out}W")
 
-# Funciones existentes de EcoFlow (manteniendo tu código)
+# Mantener las funciones originales de EcoFlow MQTT...
+
 def hmac_sha256(data, key):
     return hmac.new(key.encode(), data.encode(), hashlib.sha256).hexdigest()
 
@@ -260,59 +231,58 @@ def publish_to_mqtt(client, data):
     except Exception as e:
         print(f"❌ MQTT publish error: {e}")
 
-def run_scheduler():
-    """Ejecutar el planificador en segundo plano"""
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-
 def main():
-    # Inicializar controlador
-    controller = EcoFlowTuyaController()
+    print("=" * 50)
+    print("🚀 SISTEMA ECOFLOW + TUYA SOCKET - ECUADOR 🇪🇨")
+    print("=" * 50)
     
-    # Configurar schedule para verificación periódica
-    schedule.every(5).minutes.do(lambda: print("🕒 Schedule check running..."))
-    
-    # Iniciar scheduler en segundo plano
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
-    
-    # Conectar MQTT
-    mqtt_client = connect_mqtt()
-    
-    # Enviar mensaje de inicio
-    controller.send_telegram_alert("🚀 Sistema EcoFlow+Tuya INICIADO")
-    
-    # Bucle principal
-    start_time = time.time()
-    duration = 5 * 60  # 5 minutos (para Render)
-    
-    while time.time() - start_time < duration:
-        # Obtener datos de EcoFlow
-        raw = get_status()
-        if raw:
-            data = transform_data(raw)
-            
-            # Publicar a MQTT
-            publish_to_mqtt(mqtt_client, data)
-            
-            # Aplicar lógica de control
-            soc = data.get("soc_percent", 0)
-            watts_out = data.get("watts_out", 0)
-            
-            controller.check_conditions(soc, watts_out)
-            
-            print(f"🔋 {soc}% | ⚡ {watts_out}W | 💡 Socket: {'ON' if current_status['socket_state'] else 'OFF'} | Override: {current_status['override_active']}")
+    try:
+        # Inicializar controlador
+        controller = EcoFlowTuyaControllerEC()
         
-        time.sleep(30)  # Esperar 30 segundos
-    
-    # Mensaje de finalización
-    controller.send_telegram_alert("🛑 Sistema detenido (fin de ciclo Render)")
-    mqtt_client.loop_stop()
+        # Conectar MQTT
+        mqtt_client = connect_mqtt()
+        
+        # Enviar mensaje de inicio
+        controller.send_telegram_alert("🚀 Sistema EcoFlow+Tuya INICIADO")
+        
+        # Bucle principal
+        start_time = time.time()
+        duration = 5 * 60  # 5 minutos para Render
+        
+        while time.time() - start_time < duration:
+            # Obtener datos de EcoFlow
+            raw = get_status()
+            if raw:
+                data = transform_data(raw)
+                
+                # Publicar a MQTT
+                publish_to_mqtt(mqtt_client, data)
+                
+                # Aplicar lógica de control
+                soc = data.get("soc_percent", 0)
+                watts_out = data.get("watts_out", 0)
+                
+                controller.check_conditions(soc, watts_out)
+                
+                # Mostrar estado
+                print(f"📊 Batería: {soc}% | Consumo: {watts_out}W")
+                print("-" * 30)
+            
+            time.sleep(30)  # Esperar 30 segundos
+        
+        # Mensaje de finalización
+        controller.send_telegram_alert("🛑 Sistema detenido (fin de ciclo)")
+        if mqtt_client:
+            mqtt_client.loop_stop()
+        
+    except Exception as e:
+        print(f"❌ Error crítico: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
-
 
 
 '''
@@ -477,4 +447,5 @@ if __name__ == "__main__":
     main()
 
 '''
+
 
