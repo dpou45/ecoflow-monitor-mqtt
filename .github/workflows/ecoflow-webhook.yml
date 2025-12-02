@@ -37,6 +37,10 @@ jobs:
           HIVEMQ_USER: ${{ secrets.HIVEMQ_USER }}
           HIVEMQ_PASS: ${{ secrets.HIVEMQ_PASS }}
           MAKE_URL: ${{ secrets.MAKE_URL }}
+          TUYA_USERNAME: ${{ secrets.TUYA_USERNAME }}
+          TUYA_PASSWORD: ${{ secrets.TUYA_USERNAME }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN}}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID}}
         run: |
           echo "Starting EcoFlow MQTT script at $(date)"
           python main.py
