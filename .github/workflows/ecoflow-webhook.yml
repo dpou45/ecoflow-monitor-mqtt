@@ -23,7 +23,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install requests==2.31.0
+          pip install "paho-mqtt<2.0.0"  # Versión compatible
+          pip install python-telegram-bot==20.6
+          pip install tinytuya==1.17.4
+
       - name: Write CA certificate to file
         run: |
           echo "${{ secrets.HIVEMQ_CA_PEM }}" > hivemq_ca.pem 
