@@ -37,9 +37,9 @@ jobs:
           HIVEMQ_USER: ${{ secrets.HIVEMQ_USER }}
           HIVEMQ_PASS: ${{ secrets.HIVEMQ_PASS }}
           MAKE_URL: ${{ secrets.MAKE_URL }}
+          TUYA_ACCESS_ID: ${{ secrets.TUYA_ACCESS_ID }}      # Client ID de Tuya IoT
+          TUYA_ACCESS_KEY: ${{ secrets.TUYA_ACCESS_KEY }}   # Client Secret de Tuya IoT
           TUYA_DEVICE_ID: ${{ secrets.TUYA_DEVICE_ID }}
-          TUYA_LOCAL_KEY: ${{ secrets.TUYA_LOCAL_KEY }}
-          TUYA_DEVICE_IP: ${{ secrets.TUYA_DEVICE_IP }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN}}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID}}
         run: |
